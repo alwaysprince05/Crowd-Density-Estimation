@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Crowd Density Estimation - Live Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-base: #0a0b10;
+            --bg-surface: rgba(18, 22, 35, 0.4);
+            --bg-card: rgba(255, 255, 255, 0.02);
+            --border-glow: rgba(59, 130, 246, 0.2);
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --accent: #3b82f6;
+            --accent-glow: rgba(59, 130, 246, 0.3);
+            
+            --color-low: #10b981;
+            --color-moderate: #fbbf24;
+            --color-high: #f97316;
+            --color-critical: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-base);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Animated Ambient Background Gradients */
+        .ambient-glow {
+            position: absolute;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, rgba(0, 0, 0, 0) 70%);
+            top: -200px;
+            left: -200px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        .ambient-glow-right {
+            position: absolute;
+            width: 700px;
+            height: 700px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.08) 0%, rgba(0, 0, 0, 0) 70%);
+            bottom: -200px;
+            right: -200px;
+            pointer-events: none;
+            z-index: 0;
+        }
+
+        header {
+            position: relative;
+            z-index: 10;
+            padding: 1.5rem 2.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(20px);
+        }
+
+        .header-title-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header-title-group h1 {
+            font-size: 1.75rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            background: linear-gradient(135deg, #ffffff 0%, #a5b4fc 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.15rem;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            padding: 0.4rem 0.9rem;
+            border-radius: 9999px;
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            color: var(--color-low);
+            font-size: 0.8rem;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: var(--color-low);
+            box-shadow: 0 0 10px var(--color-low);
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(0.95); opacity: 0.6; }
+            50% { transform: scale(1.2); opacity: 1; }
+            100% { transform: scale(0.95); opacity: 0.6; }
+        }
+
+        main {
+            position: relative;
+            z-index: 10;
+            flex: 1;
+            padding: 2.5rem;
+            max-width: 1600px;
+            width: 100%;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1.6fr 1fr;
+            gap: 2.5rem;
+        }
+
+        @media (max-width: 1200px) {
+            main {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Glassmorphism Panel style */
+        .glass-panel {
+            background: var(--bg-surface);
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(24px);
+            border-radius: 24px;
+            padding: 2rem;
+            box-shadow: 0 20px 40px 0 rgba(0, 0, 0, 0.4);
+            transition: all 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .glass-panel:hover {
+            border-color: var(--border-glow);
+            box-shadow: 0 20px 50px 0 rgba(59, 130, 246, 0.04);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.25rem;
+        }
+
+        .section-title {
+            font-size: 1.15rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            letter-spacing: -0.01em;
+        }
+
+        /* Video Feed and Wrapper */
+        .video-wrapper {
+            position: relative;
+            width: 100%;
+            aspect-ratio: 16/9;
+            background: #000;
+            border-radius: 16px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .video-stream {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* Buttons & Dynamic Controls */
+        .controls-row {
+            margin-top: 1.5rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .btn {
+            background: var(--accent);
+            color: white;
+            border: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+            box-shadow: 0 4px 14px 0 var(--accent-glow);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .btn:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px 0 var(--accent-glow);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            box-shadow: none;
+        }
+
+        .btn-outline:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: rgba(255, 255, 255, 0.2);
+            box-shadow: none;
+        }
+
+        .btn-active-pause {
+            background: #ef4444;
+            box-shadow: 0 4px 14px 0 rgba(239, 68, 68, 0.3);
+        }
+        .btn-active-pause:hover {
+            background: #dc2626;
+            box-shadow: 0 6px 20px 0 rgba(239, 68, 68, 0.3);
+        }
+
+        /* Timeline Chart Panel */
+        .chart-panel {
+            margin-top: 2rem;
+        }
+
+        /* Sidebar Stats */
+        .sidebar {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.25rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 18px;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            border-color: rgba(255, 255, 255, 0.08);
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            font-weight: 600;
+        }
+
+        .stat-val {
+            font-size: 2.4rem;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+            margin-top: 0.15rem;
+        }
+
+        .density-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.6rem;
+            font-weight: 700;
+            font-size: 1.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .badge-pill {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+        }
+
+        .badge-LOW { background-color: var(--color-low); box-shadow: 0 0 12px var(--color-low); }
+        .badge-MODERATE { background-color: var(--color-moderate); box-shadow: 0 0 12px var(--color-moderate); }
+        .badge-HIGH { background-color: var(--color-high); box-shadow: 0 0 12px var(--color-high); }
+        .badge-CRITICAL { background-color: var(--color-critical); box-shadow: 0 0 12px var(--color-critical); }
+
+        .text-LOW { color: var(--color-low); }
+        .text-MODERATE { color: var(--color-moderate); }
+        .text-HIGH { color: var(--color-high); }
+        .text-CRITICAL { color: var(--color-critical); }
+
+        /* Configuration Slider Controls */
+        .slider-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            margin-top: 0.5rem;
+        }
+
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.9rem;
+        }
+
+        .slider-input {
+            width: 100%;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 5px;
+            outline: none;
+            -webkit-appearance: none;
+            transition: background 0.3s;
+        }
+
+        .slider-input::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: var(--accent);
+            cursor: pointer;
+            box-shadow: 0 0 10px var(--accent-glow);
+            transition: transform 0.1s ease;
+        }
+
+        .slider-input::-webkit-slider-thumb:hover {
+            transform: scale(1.2);
+        }
+
+        /* Config Table Items */
+        .config-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            margin-top: 0.5rem;
+        }
+
+        .config-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 0.925rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+        }
+
+        .config-item:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .config-label {
+            color: var(--text-secondary);
+        }
+
+        .config-value {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        footer {
+            margin-top: auto;
+            padding: 2rem;
+            text-align: center;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            border-top: 1px solid rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(20px);
+            position: relative;
+            z-index: 10;
+        }
+
+        footer a {
+            color: var(--text-primary);
+            text-decoration: none;
+            font-weight: 600;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        footer a:hover {
+            border-bottom-color: var(--text-primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-glow"></div>
+    <div class="ambient-glow-right"></div>
+
+    <header>
+        <div class="header-title-group">
+            <h1>Crowd Density Estimator</h1>
+            <span class="header-subtitle">Intelligent Person Detection & Density Mapping</span>
+        </div>
+        <div class="status-badge">
+            <span class="status-dot"></span>
+            <span>SYSTEM ACTIVE</span>
+        </div>
+    </header>
+
+    <main>
+        <!-- Left: Live Video & Timeline Chart -->
+        <section style="display: flex; flex-direction: column; gap: 2rem;">
+            <div class="glass-panel">
+                <div class="section-header">
+                    <h2 class="section-title">Live Video Analytics</h2>
+                </div>
+                <div class="video-wrapper">
+                    <img id="video-feed" class="video-stream" src="/video_feed" alt="Live crowd analysis processing">
+                </div>
+                <div class="controls-row">
+                    <button class="btn btn-active-pause" id="play-pause-btn">
+                        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16" id="play-pause-icon">
+                            <path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z"/>
+                        </svg>
+                        <span id="play-pause-text">Pause Stream</span>
+                    </button>
+                    <button class="btn btn-outline" id="reset-btn">
+                        <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                            <path fill-rule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                            <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658a.25.25 0 0 1-.41-.192z"/>
+                        </svg>
+                        Reset Tracker
+                    </button>
+                </div>
+            </div>
+
+            <div class="glass-panel chart-panel">
+                <div class="section-header">
+                    <h2 class="section-title">Historical Trends (Crowd Size over Time)</h2>
+                </div>
+                <div style="width: 100%; height: 260px; position: relative;">
+                    <canvas id="densityChart"></canvas>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right: Info Panel & Settings -->
+        <section class="sidebar">
+            <div class="glass-panel">
+                <div class="section-header">
+                    <h2 class="section-title">Live Diagnostics</h2>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="stat-label">People Detected</span>
+                        <span class="stat-val" id="people-count">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Density Status</span>
+                        <div class="density-indicator">
+                            <span id="density-badge" class="badge-pill badge-LOW"></span>
+                            <span id="density-level" class="text-LOW">LOW</span>
+                        </div>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Frame Rate</span>
+                        <span class="stat-val"><span id="fps">0.0</span> <span style="font-size: 0.95rem; font-weight:400; color: var(--text-secondary);">FPS</span></span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Inference Speed</span>
+                        <span class="stat-val"><span id="latency">0.0</span> <span style="font-size: 0.95rem; font-weight:400; color: var(--text-secondary);">ms</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="glass-panel">
+                <div class="section-header">
+                    <h2 class="section-title">Model Tuning</h2>
+                </div>
+                <div class="slider-group">
+                    <div class="slider-header">
+                        <span class="config-label">Detection Confidence Threshold</span>
+                        <span class="config-value" id="conf-val">0.30</span>
+                    </div>
+                    <input type="range" class="slider-input" id="conf-slider" min="0.10" max="0.90" step="0.05" value="0.30">
+                </div>
+            </div>
+
+            <div class="glass-panel">
+                <div class="section-header">
+                    <h2 class="section-title">System Information</h2>
+                </div>
+                <div class="config-list">
+                    <div class="config-item">
+                        <span class="config-label">Inference Engine</span>
+                        <span class="config-value" id="cfg-model">YOLOv8 Nano</span>
+                    </div>
+                    <div class="config-item">
+                        <span class="config-label">Compute Device</span>
+                        <span class="config-value" id="cfg-device">CPU</span>
+                    </div>
+                    <div class="config-item">
+                        <span class="config-label">Image Input Dimensions</span>
+                        <span class="config-value" id="cfg-res">960 x 540</span>
+                    </div>
+                    <div class="config-item">
+                        <span class="config-label">Tracking Protocol</span>
+                        <span class="config-value">ByteTrack</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <footer>
+        <p>Developed with ❤️ by <a href="https://github.com/alwaysprince05" target="_blank">Prince Maurya</a></p>
+    </footer>
+
+    <script>
+        // Setup Chart.js
+        const ctx = document.getElementById('densityChart').getContext('2d');
+        const maxDataPoints = 40;
+        const chartData = {
+            labels: Array(maxDataPoints).fill(''),
+            datasets: [{
+                label: 'Crowd Count',
+                data: Array(maxDataPoints).fill(0),
+                borderColor: '#3b82f6',
+                borderWidth: 2,
+                pointRadius: 0,
+                fill: true,
+                backgroundColor: 'rgba(59, 130, 246, 0.05)',
+                tension: 0.4
+            }]
+        };
+
+        const chartOptions = {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { display: false }
+            },
+            scales: {
+                x: {
+                    grid: { display: false },
+                    ticks: { display: false }
+                },
+                y: {
+                    grid: { color: 'rgba(255, 255, 255, 0.03)' },
+                    ticks: { color: '#9ca3af', font: { family: 'Outfit', size: 10 } }
+                }
+            }
+        };
+
+        const densityChart = new Chart(ctx, {
+            type: 'line',
+            data: chartData,
+            options: chartOptions
+        });
+
+        // App States
+        let isRunningState = true;
+
+        // Fetch updates
+        function updateStats() {
+            fetch('/stats')
+                .then(response => response.json())
+                .then(data => {
+                    document.getElementById('people-count').innerText = data.people_count;
+                    document.getElementById('fps').innerText = data.fps.toFixed(1);
+                    document.getElementById('latency').innerText = data.latency.toFixed(1);
+                    
+                    // Update badges
+                    const level = data.density_level;
+                    const badge = document.getElementById('density-badge');
+                    const text = document.getElementById('density-level');
+                    badge.className = `badge-pill badge-${level}`;
+                    text.className = `text-${level}`;
+                    text.innerText = level;
+
+                    // Update dynamic configuration
+                    if (data.config) {
+                        document.getElementById('cfg-model').innerText = data.config.yolo_model;
+                        document.getElementById('cfg-device').innerText = data.config.device.toUpperCase();
+                        document.getElementById('cfg-res').innerText = `${data.config.resize_width} x ${data.config.resize_height}`;
+                    }
+
+                    // Update Chart
+                    if (isRunningState) {
+                        chartData.datasets[0].data.shift();
+                        chartData.datasets[0].data.push(data.people_count);
+                        densityChart.update('none');
+                    }
+                })
+                .catch(err => console.error('Error fetching stats:', err));
+        }
+
+        // Poll stats
+        setInterval(updateStats, 250);
+
+        // Control Panel Listeners
+        const playPauseBtn = document.getElementById('play-pause-btn');
+        const playPauseText = document.getElementById('play-pause-text');
+        const playPauseIcon = document.getElementById('play-pause-icon');
+
+        playPauseBtn.addEventListener('click', () => {
+            const action = isRunningState ? 'pause' : 'play';
+            fetch('/control', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: action })
+            })
+            .then(res => res.json())
+            .then(res => {
+                isRunningState = res.is_running;
+                if (isRunningState) {
+                    playPauseText.innerText = "Pause Stream";
+                    playPauseBtn.className = "btn btn-active-pause";
+                    playPauseIcon.innerHTML = `<path d="M5.5 3.5A1.5 1.5 0 0 1 7 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5zm5 0A1.5 1.5 0 0 1 12 5v6a1.5 1.5 0 0 1-3 0V5a1.5 1.5 0 0 1 1.5-1.5z"/>`;
+                } else {
+                    playPauseText.innerText = "Play Stream";
+                    playPauseBtn.className = "btn";
+                    playPauseIcon.innerHTML = `<path d="M10.804 8 5 4.633v6.734L10.804 8zm.792-.696a.802.802 0 0 1 0 1.392l-6.363 3.692C4.713 12.69 4 12.345 4 11.692V4.308c0-.653.713-.998 1.233-.696l6.363 3.692z"/>`;
+                }
+            });
+        });
+
+        document.getElementById('reset-btn').addEventListener('click', () => {
+            fetch('/control', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ action: 'reset' })
+            });
+        });
+
+        // Config Threshold Listener
+        const confSlider = document.getElementById('conf-slider');
+        const confVal = document.getElementById('conf-val');
+
+        confSlider.addEventListener('input', (e) => {
+            const val = parseFloat(e.target.value);
+            confVal.innerText = val.toFixed(2);
+            fetch('/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ conf_threshold: val })
+            });
+        });
+    </script>
+</body>
+</html>
