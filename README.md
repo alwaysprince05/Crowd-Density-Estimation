@@ -2,7 +2,7 @@
 
 > Real-time crowd density estimation using **YOLOv8** for person detection and **ByteTrack** for multi-object tracking — running at up to **70 FPS**.
 
-![Demo](https://github.com/user-attachments/assets/b1ad8e0c-0e17-479c-bc14-a766b170a4f7)
+![Dashboard](dashboard.png)
 
 ---
 
