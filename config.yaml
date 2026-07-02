@@ -1,0 +1,11 @@
+# Crowd Density Estimator Configuration
+
+video_path: "nyc crowd.mp4"         # Path to input video file
+resize_width: 960               # Resize width for processing (higher FPS)
+resize_height: 540              # Resize height for processing
+display: true                   # Show output window
+save_output: false              # Save annotated video
+output_path: "output.mp4"       # Output video file path
+use_half: true                  # Use FP16 if CUDA available
+device: "cpu"                  # "cuda" or "cpu"
+yolo_model: "yolov8n.pt"        # YOLOv8 nano model path

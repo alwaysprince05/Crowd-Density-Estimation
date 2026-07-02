@@ -1,0 +1,6 @@
+ultralytics==8.1.37
+opencv-python>=4.8.0
+numpy>=1.23.0
+torch>=2.0.0
+bytetrack @ git+https://github.com/ifzhang/ByteTrack.git
+pyyaml>=6.0
